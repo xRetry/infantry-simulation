@@ -77,6 +77,7 @@ class Cof:
     scalar: list = (0, )
     scalar_moving: list = (0, )
 
+
 @dataclass
 class Ammo:
     clip_size: list = (30, )

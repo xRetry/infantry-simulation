@@ -1,6 +1,6 @@
 import numpy as np
 
-DIR = 'C:\\Users\\Marco\\Dropbox\\Privat\\Coding Projects\\Python\\engagement_simulation\\'
+DIR = 'C:\\Users\\Marco\\Dropbox\\Privat\\Coding Projects\\Python\\infantry_simulation\\'
 
 # Player colors for plotting
 PLAYER_COLORS = ['royalblue', 'firebrick', 'grey']

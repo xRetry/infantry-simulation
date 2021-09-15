@@ -1,5 +1,5 @@
 import itertools
-from typing import Iterable, Optional, List, Dict
+from typing import Iterable, Optional, List, Dict, Set
 
 
 class Operation:
@@ -17,20 +17,25 @@ class Operation:
 
 
 class Input:
+    idx = int
     name: Optional[str]
 
-    def __init__(self, name:Optional[str]=None):
+    def __init__(self, idx:int,  name:Optional[str]=None):
+        self.idx = idx
         self.name = name
 
 
 class Graph:
-    inputs: Dict[Input, int]
+    inputs: Set[Input]
+    evaluations: Dict[callable, dict]
     eval_order: List[Operation]
     names: Dict[Operation or Input, str]
 
-    def __init__(self, inputs:List[Input], final_operation:Operation):
-        # Convert list of Inputs to dict of Input->idx
-        self.inputs = {inputs[i]:i for i in range(len(inputs))}
+    def __init__(self, final_operation:Operation):
+        # Initialize set for inputs
+        self.inputs = set()
+        # Initialize evaluation memory
+        self.evaluations = dict()
         # Initialize list for evaluation order
         self.eval_order = []
         # Initialize dictionary of names
@@ -41,7 +46,7 @@ class Graph:
         self._get_names()
 
     def _find_order(self, element):
-        # Only continue is current element is Operation
+        # Element is Operation -> recurse, add to order
         if isinstance(element, Operation):
             # Recursively check all argument operations
             for arg in element.arguments:
@@ -49,10 +54,18 @@ class Graph:
             # Add current operation to evaluation eval_order if not added already
             if element not in self.eval_order:
                 self.eval_order.append(element)
+            # Add element function to evaluation memory
+            self.evaluations[element.function] = {}
+        # Element is Input -> add to inputs
+        elif isinstance(element, Input):
+            self.inputs.add(element)
+        # Element is other type -> error
+        else:
+            raise TypeError('Invalid graph element: {}'.format(element.__class__))
 
     def _get_names(self):
-        for inp, i in self.inputs.items():
-            name = f'in_{i}' if inp.name is None else inp.name
+        for inp in self.inputs:
+            name = f'in_{inp.idx}' if inp.name is None else inp.name
             self.names[inp] = name
         for i, op in enumerate(self.eval_order):
             name = f'op_{i}' if op.name is None else op.name
@@ -66,7 +79,7 @@ class Graph:
         # Iterate through all input combinations
         for combi in itertools.product(*args):
             # Create value storage dict with current combination added
-            values = {k: combi[v] for k, v in self.inputs.items()}
+            values = {inp: combi[inp.idx] for inp in self.inputs}
             # Iterate through ordered evaluation operations
             for operation in self.eval_order:
                 # Add evaluation result to storage dict
