@@ -1,4 +1,6 @@
 import numpy as np
+import numba as nb
+from typing import Optional
 
 
 def calc_damage_body(dmg_max: float, dmg_min: float, range_max: float, range_min: float, distance: float) -> float:
@@ -28,56 +30,89 @@ def calc_fly_time(distance: float, projectile_speed: float) -> float:
     return 1 / projectile_speed * distance
 
 
-def calc_random_uniform(min_val, max_val, n, random_gen=np.random.rand):
-    return (max_val - min_val) * random_gen(int(n)) + min_val
+@nb.njit(nb.float32(nb.float32, nb.float32))
+def calc_random_uniform(min_val: float, max_val: float) -> float:
+    return (max_val - min_val) * np.random.rand() + min_val
 
 
-def calc_sign(angles, max_angle):
-    angles = angles * np.sign(np.random.rand(len(angles))-0.5)
-    angle_cur = 0.
-    for i in range(len(angles)):
-        if angle_cur > max_angle:
-            angles[i] = -abs(angles[i])
-        if angle_cur < -max_angle:
-            angles[i] = abs(angles[i])
-        angle_cur += angles[i]
-    return angles
+@nb.njit(nb.float32(nb.float32, nb.float32))
+def calc_delta(degree: float, distance: float):
+    return np.tan(degree * 2 * np.pi / 360) * distance
 
 
-def calc_delta(x_samples, y_samples, first_shot_multi, x_tolerance, distance):
-    xy_degree = np.array([x_samples, y_samples])
-    xy_degree[1, 0] *= first_shot_multi
-    xy_degree[0] = calc_sign(xy_degree[0], x_tolerance)
-    xy_delta = np.tan(np.deg2rad(xy_degree)) * distance
-    return xy_delta
+@nb.njit()
+def calc_recoil_numba(
+        n_mag: int, x_min: float, x_max: float, y_min: float, y_max: float,
+        angle_min: float, angle_max: float, fs_multi: float, x_tol: float,
+        distance: float, cof_min: float, cof_max: float, cof_delta: float,
+        x_comp_delay: Optional[int] = None, y_comp_delay: Optional[int] = None
+):
+    x = [0.]
+    y = [0.]
+    x_sum = 0.
+    for bullet in range(1, int(n_mag)):
 
+        x_degree: float = calc_random_uniform(x_min, x_max)
+        if x_sum > x_tol:
+            x_degree = -x_degree
+        elif x_sum < -x_tol:
+            x_degree = x_degree
+        else:
+            if np.random.rand() < 0.5:
+                x_degree = -x_degree
+        x_sum += x_degree
 
-def calc_bloom_radius(min_cof, max_cof, increase, n_mag, distance):
-    cof = min_cof + np.arange(0, n_mag) * increase
-    cof[cof > max_cof] = max_cof
-    bloom_radius = np.tan(np.deg2rad(cof)) * distance
-    return bloom_radius
+        y_degree = calc_random_uniform(y_min, y_max)
+        if bullet == 1:
+            y_degree *= fs_multi
 
+        x_delta = calc_delta(x_degree, distance)
+        y_delta = calc_delta(y_degree, distance)
 
-def calc_bloom_samples(xy, radius):
-    random_radius = np.sqrt(np.random.uniform(0, 1, len(radius))) * radius
-    random_angle = np.pi * np.random.uniform(0, 2, len(radius))
-    xy_random = np.array([np.cos(random_angle), np.sin(random_angle)]) * random_radius
-    return xy + xy_random
+        is_x_comp = x_comp_delay is not None and bullet % x_comp_delay == 0
+        is_y_comp = y_comp_delay is not None and bullet % y_comp_delay == 0
+        if is_y_comp:
+            y_delta = 0.
 
+        angle_deg = calc_random_uniform(angle_min, angle_max)
+        angle_rad = -angle_deg * 2 * np.pi / 360
 
-def calc_compensation(xy_delta, xy_compensation):
-    return xy_delta - xy_delta * xy_compensation[:, None]
+        x_rot = x_delta * np.cos(angle_rad) - y_delta * np.sin(angle_rad)
+        y_rot = x_delta * np.sin(angle_rad) + y_delta * np.cos(angle_rad)
 
+        x_new = x[bullet - 1] + x_rot
+        y_new = y[bullet - 1] + y_rot
 
-def calc_path(xy_delta:np.ndarray, angles:np.ndarray):
-    rot_mat = np.array([
-        [np.cos(np.deg2rad(angles)), -np.sin(np.deg2rad(angles))],
-        [np.sin(np.deg2rad(angles)), np.cos(np.deg2rad(angles))]
-    ])
-    xy_rot = np.einsum('bca,ca->ba', rot_mat, xy_delta)
-    xy = np.cumsum(np.hstack((np.zeros((2, 1)), xy_rot)), axis=1)
-    return xy
+        if is_x_comp:
+            x_new = x_rot
+        if is_y_comp:
+            y_new = y_rot
+
+        x.append(x_new)
+        y.append(y_new)
+
+    bullets = []
+    x_bloom = []
+    y_bloom = []
+    radius_bloom = []
+    cof = cof_min
+    for bullet in range(int(n_mag)):
+        radius_max = np.tan(cof * np.pi / 360) * distance
+        cof += cof_delta
+        if cof > cof_max:
+            cof = cof_max
+
+        radius_random = np.sqrt(np.random.uniform(0, 1)) * radius_max
+        angle_random = np.pi * np.random.uniform(0, 2)
+        x_random = radius_random * np.cos(angle_random)
+        y_random = radius_random * np.sin(angle_random)
+
+        radius_bloom.append(radius_max)
+        x_bloom.append(x[bullet] + x_random)
+        y_bloom.append(y[bullet] + y_random)
+        bullets.append(bullet + 1)
+
+    return x, y, radius_bloom, x_bloom, y_bloom, bullets
 
 
 if __name__ == '__main__':
