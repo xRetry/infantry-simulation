@@ -21,6 +21,8 @@ def iterate(func, args, names_in, names_out, flatten=False):
 
     for inputs in itertools.product(*args_wrapped):
         outputs = func(*inputs)
+        if not isinstance(outputs, tuple):
+            outputs = [outputs]
 
         for i in range(len(inputs)):
             if flatten:

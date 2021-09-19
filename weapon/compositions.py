@@ -3,7 +3,7 @@ from computation.iteration import iterate
 from weapon.classes import Weapon
 
 
-def sample_recoil(weapon_id, n_samples, x_delay=None, y_delay=None, n_bullets=None):
+def sample_gradients(weapon_id, n_samples, n_bullets=None):
     wpn = Weapon(weapon_id)
 
     args = (
@@ -16,20 +16,17 @@ def sample_recoil(weapon_id, n_samples, x_delay=None, y_delay=None, n_bullets=No
         wpn.recoil.angle_max,
         wpn.recoil.first_shot_multi,
         wpn.recoil.horizontal_tolerance,
-        [10 for i in range(n_samples)],
         wpn.cof.min,
         wpn.cof.max,
-        wpn.cof.recoil,
-        x_delay,
-        y_delay
+        [wpn.cof.recoil for i in range(n_samples)],
     )
 
     result = iterate(
-        func=functions.calc_recoil_numba,
+        func=functions.calc_recoil,
         args=args,
         names_in=[f'in_{i}' for i in range(len(args))],
-        names_out=['x_center', 'y_center', 'radius', 'x', 'y', 'bullets'],
-        flatten=True
+        names_out=['xy_center', 'xy'],
+        flatten=False
     )
 
     return result
