@@ -1,6 +1,6 @@
 import ps2.utils
 import constants
-from typing import List
+from typing import Collection
 
 
 def weapon_from_api(id_or_name:int or str) -> dict:
@@ -34,7 +34,11 @@ def format_weapon(raw:dict) -> dict:
     weapon_keys = ['name', 'item_id', 'item_type_id', 'faction_id', 'category']
     data = {}
     for key in weapon_keys:
-        val = raw['item_list'][0][key]
+        try:
+            val = raw['item_list'][0][key]
+        except KeyError:
+            print('Key not found: {}'.format(key))
+            continue
         if isinstance(val, dict):
             if key == 'category':
                 name = val.pop('name')
@@ -65,7 +69,11 @@ def format_weapon(raw:dict) -> dict:
         fire_modes = fire_group['fire_group_id_join_fire_group_to_fire_mode']
         for fire_mode in fire_modes:
             # Iterate through weapon stats
-            stats = fire_mode['fire_mode_id_join_fire_mode_2'][0]
+            try:
+                stats = fire_mode['fire_mode_id_join_fire_mode_2'][0]
+            except KeyError:
+                print('Key not found: {}'.format('fire_mode_id_join_fire_mode_2'))
+                continue
             fire_mode_stats = {}
             for key, val in stats.items():
                 if key == 'description':
@@ -178,7 +186,7 @@ def download_weapon(id_or_name):
     save_weapon(formatted_data)
 
 
-def extract_stats(item_id:int, player_state_id:int=0, fire_mode:str='Auto', ads:bool=True, attachments:List[str]=()) -> dict:
+def extract_stats(item_id:int, player_state_id:int=0, fire_mode:str='Auto', ads:bool=True, attachments:Collection[str]=()) -> dict:
     """
     Loads relevant weapon data for engagement simulator from preformatted weapon data file.
 
@@ -206,76 +214,6 @@ def extract_stats(item_id:int, player_state_id:int=0, fire_mode:str='Auto', ads:
     # Sanity check
     if data['player_state']['cof_min'] != data['player_state']['min_cone_of_fire']:
         raise ValueError('Difference of min cof!')
-
-    # Adding values to stats dict
-    '''
-    stats = {
-        'name': data_full['name'],
-        'projectile': {
-            'speed': data_fire_mode['projectile_speed_override'],
-            'speed_max': data_fire_mode['projectile']['speed_max'],
-            'acceleration': data_fire_mode['projectile']['acceleration'],
-            'lifespan': data_fire_mode['projectile']['lifespan'],
-            'drag': data_fire_mode['projectile']['drag'],
-            'gravity': data_fire_mode['projectile']['gravity']
-        },
-        'damage': {
-            'max': data_fire_mode['max_damage'],
-            'min': data_fire_mode['min_damage'],
-            'range_max': data_fire_mode['max_damage_range'],
-            'range_min': data_fire_mode['min_damage_range'],
-            'multi_head': data_fire_mode['damage_head_multiplier'],
-            'multi_legs': data_fire_mode['damage_legs_multiplier'],
-            'shield_bypass_pct': data_fire_mode['shield_bypass_pct']
-        },
-        'recoil': {
-            'angle_max': data_fire_mode['recoil_angle_max'],
-            'angle_min': data_fire_mode['recoil_angle_min'],
-            'first_shot_multi': data_fire_mode['recoil_first_shot_modifier'],
-            'horizontal_max': data_fire_mode['recoil_horizontal_max'],
-            'horizontal_min': data_fire_mode['recoil_horizontal_min'],
-            'horizontal_tolerance': data_fire_mode['recoil_horizontal_tolerance'],
-            'increase': data_fire_mode['recoil_increase_crouched'] if player_state_id == (1 or 5) else data_fire_mode['recoil_increase'],
-            'magnitude_max': data_fire_mode['recoil_magnitude_max'],
-            'magnitude_min': data_fire_mode['recoil_magnitude_min'],
-            'magnitude_total_max': data_fire_mode['recoil_max_total_magnitude'],
-            'magnitude_shots_at_min': data_fire_mode['recoil_shots_at_min_magnitude'],
-            'recovery_acceleration': data_fire_mode['recoil_recovery_acceleration'],
-            'recovery_delay': data_fire_mode['recoil_recovery_delay_ms']/1000,
-            'recovery_rate': data_fire_mode['recoil_recovery_rate']
-        },
-        'reload': {
-            'ammo_fill': data_fire_mode['reload_ammo_fill_ms'] / 1000,
-            'chamber': data_fire_mode['reload_chamber_ms'] / 1000,
-            'time': data_fire_mode['reload_time_ms'] / 1000
-        },
-        'cof': {
-            'min': data_player_state['cof_min'],
-            'max': data_player_state['cof_max'],
-            'grow_rate': data_player_state['cof_grow_rate'],
-            'recovery_delay': data_player_state['cof_recovery_delay_ms']/1000,
-            'recovery_rate': data_player_state['cof_recovery_rate'],
-            'recovery_delay_threshold': data_player_state['cof_recovery_delay_threshold'],
-            'turn_penalty': data_player_state['cof_turn_penalty'],
-            'pellet_spread': data_fire_mode['cof_pellet_spread'],
-            'range': data_fire_mode['cof_range'],
-            'recoil': data_fire_mode['cof_recoil'],
-            'scalar': data_fire_mode['cof_scalar'],
-            'scalar_moving': data_fire_mode['cof_scalar_moving']
-        },
-        'fire': {
-            'ammo_per_shot': data_fire_mode["fire_ammo_per_shot"],
-            'time_auto_fire': data_fire_mode["fire_auto_fire_ms"] / 1000,
-            'burst_count': data_fire_mode["fire_burst_count"],
-            'time_charge_up': data_fire_mode["fire_charge_up_ms"] / 1000,
-            'time_delay': data_fire_mode["fire_delay_ms"] / 1000,
-            'detect_range': data_fire_mode["fire_detect_range"],
-            'time_refire': data_fire_mode["fire_refire_ms"] / 1000,
-            'pellets_per_shot': data_fire_mode["fire_pellets_per_shot"]
-        },
-        'attachments': attachments
-    }
-    '''
 
     # Extract attachment stats
     # TODO: Add zoom and zoom modifiers
@@ -330,5 +268,6 @@ def build_stats(data:dict, att_values:dict):
 
 
 if __name__ == '__main__':
-    #download_weapon(70998)
-    extract_stats(70998, attachments=['Soft Point Ammunition', 'High Velocity Ammunition', 'NiCO (1x)', 'Compensator', 'Forward Grip', 'Laser Sight'])
+    download_weapon(804243)
+    #extract_stats(70998, attachments=['Soft Point Ammunition', 'High Velocity Ammunition', 'NiCO (1x)', 'Compensator', 'Forward Grip', 'Laser Sight'])
+    pass

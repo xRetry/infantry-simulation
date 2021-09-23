@@ -4,6 +4,7 @@ import matplotlib.patches as mpatches
 import matplotlib.colors as mcolors
 from matplotlib.legend_handler import HandlerTuple
 from plotting import utils
+from typing import Iterable, Optional
 import constants
 from scipy.interpolate import griddata
 
@@ -246,6 +247,108 @@ def plot(ax:plt.Subplot, x:np.ndarray, y:np.ndarray, c=None, x_label:str=None, y
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.grid(True, color=(0.1, 0.1, 0.1))
+
+
+def recoil_pattern(
+        ax:plt.Subplot, x:np.ndarray, y:np.ndarray, title:Optional[str]=None, target_x:Optional[np.ndarray]=None,
+        target_y:Optional[np.ndarray]=None, cmap='plasma', n=None, target_distance=None
+):
+    x_size = (np.max(x) - np.min(x))
+    y_size = (np.max(y) - np.min(y))
+
+    x_big = 50
+    y_big = int(x_big * y_size / x_size)
+
+    mask = np.ones(x.shape[1], dtype=np.bool)
+    colormap = cmap
+    if n is not None:
+        colormap = mcolors.ListedColormap(np.ones((256, 4))*0.4)
+        if n >= 0:
+            mask[n] = False
+            x_scale = (np.max(x[:, n]) - np.min(x[:, n])) / x_size
+            y_scale = (np.max(y[:, n]) - np.min(y[:, n])) / y_size
+            grid_size_small = (int(x_big * x_scale), int(y_big * y_scale))
+            ax.hexbin(x[:, n], y[:, n], gridsize=grid_size_small, cmap=cmap, mincnt=1, zorder=1)
+    ax.hexbin(
+        x[:, mask].flatten(),
+        y[:, mask].flatten(),
+        gridsize=(x_big, y_big),
+        cmap=colormap,
+        mincnt=1,
+        bins='log',
+        zorder=0,
+    )
+    target_color = ['red', 'yellow', 'lime']
+    if target_x is not None and target_y is not None:
+        for t in range(len(target_distance)):
+            ax.plot(
+                target_x/target_distance[t],
+                target_y/target_distance[t],
+                target_color[t],
+                label=f'{target_distance[t]} m'
+            )
+        ax.legend(title='Head Hitbox', loc='upper center', bbox_to_anchor=(0,1.02,1,0.2), ncol=3, prop={'size': 6}, fontsize=20, frameon=False)
+
+    if title is not None:
+        ax.set_title(title)
+    ax.axis('scaled')
+    ax.axis('off')
+
+
+def recoil_cone(
+        ax: plt.Subplot, vals: np.ndarray, distances: np.ndarray, n_bins:int=50,
+        bar_color:str or callable='royalblue', target_color='lime', target_y=None, target_size=None
+):
+    # Define rescaling function for colormap
+    def rescale(y):
+        return (y - np.min(y)) / (np.max(y) - np.min(y))
+    # Iterate over distances
+    for i in range(len(distances)):
+        y_bul = vals.flatten() * distances[i]  # Scale values to distance
+        x_counts = np.histogram(y_bul, bins=n_bins)[0]  # Get histogram counts
+        x_size = x_counts / np.max(x_counts) * (y_bul.max() - y_bul.min()) * 3  # Scale bar heights
+        y_height = (y_bul.max() - y_bul.min()) / n_bins  # Get bar width
+        y_center = np.linspace(y_bul.min()+y_height/2, y_bul.max()-y_height/2, n_bins)  # Determine centers of bars
+        # Get colors from colormap if provided
+        if not isinstance(bar_color, str):
+            bar_c = bar_color(rescale(x_size))
+        else:
+            bar_c = bar_color
+        # Create bar plot
+        ax.barh(y=y_center, width=x_size, height=y_height, left=distances[i], color=bar_c)
+
+    x = [[0, 0], [distances[-1], distances[-1]]]  # Set up x coordinates
+    y = [[0, 0], [np.min(vals) * distances[-1], np.max(vals) * distances[-1]]]  # Set up y coordinates
+    # Create plot of bullet cone
+    ax.plot(x, y, c='grey')
+    # Add targets if provided
+    if target_y is not None and target_size is not None:
+        ax.errorbar(distances, target_y, yerr=target_size, ls='none', color=target_color, capsize=3)
+    # Disable axis
+    ax.spines['right'].set_visible(False)
+    ax.spines['top'].set_visible(False)
+    ax.spines['left'].set_visible(False)
+    # Disable y ticks
+    ax.set_yticks([])
+
+
+def recoil_centers(ax, x_centers, y_centers):
+    x = x_centers
+    y = y_centers
+    #ax.plot(x.T, y.T, c='w', alpha=0.1)
+    for b in range(len(x[0, :])-1, -1, -1):
+        ax.scatter(x[:, b], y[:, b], marker='o', zorder=2, label=b, s=2)
+    ax.axis('scaled')
+    #ax.legend(title='Bullet')
+    ax.axis('off')
+
+
+def burst(ax, dps, distances):
+    for b in range(len(dps[:, 0])):
+        plt.plot(distances, dps[b, :], label='{}'.format(b+1))
+    ax.legend(title='Bullets per Burst')
+    ax.set_xlabel('Range [m]')
+    ax.set_ylabel('Average Damage per Second [1/s]')
 
 
 if __name__ == '__main__':

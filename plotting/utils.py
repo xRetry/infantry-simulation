@@ -108,5 +108,23 @@ def calc_average(x_keep: (np.ndarray, list, tuple), y: (np.ndarray, list, tuple)
     return np.array(x).T, np.array(y)
 
 
+def ellipse(x_size:float, y_size:float, n_pts:int=100, rot_degrees:float=0) -> (np.ndarray, np.ndarray):
+    """
+    Returns equally spaced points from given ellipse, centered at 0,0.
+
+    :param x_size: Half of the horizontal width of the ellipse.
+    :param y_size: Half of the vertical height of the ellipse.
+    :param n_pts: Amount of point to be returned.
+    :param rot_degrees: Rotation of the ellipse in degrees.
+    :return: x, y coordinates of ellipse points as numpy array.
+    """
+    t = np.linspace(0, 2 * np.pi, n_pts)
+    rot_radians = np.deg2rad(rot_degrees)
+
+    x_tar = x_size * np.cos(rot_radians) * np.cos(t) - y_size * np.sin(rot_radians) * np.sin(t)
+    y_tar = x_size * np.sin(rot_radians) * np.cos(t) + y_size * np.cos(rot_radians) * np.sin(t)
+    return x_tar, y_tar
+
+
 if __name__ == '__main__':
     pass
